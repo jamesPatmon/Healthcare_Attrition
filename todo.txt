@@ -1,2 +1,1 @@
 1. 95% and 99% cannot go below min value
-2. Which should you use: 68%, 95%, 99%?
