@@ -1,0 +1,5 @@
+https://www.kaggle.com/datasets/jpmiller/employee-attrition-for-healthcare
+
+40 = 87%
+39 = 85%
+38 = 83%
