@@ -1,1 +1,0 @@
-1. 95% and 99% cannot go below min value
