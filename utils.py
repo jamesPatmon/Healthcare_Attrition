@@ -93,20 +93,22 @@ def create_title(kind: str) -> str:
     return title
 
 
-def _ci(empl_sample: pd.Series, attr_sample: pd.Series) -> Tuple:
+def _ci(empl_grp: pd.Series, attr_grp: pd.Series) -> Tuple:
     '''
-    Uses the empirical rule to calculate the confidence interval (CI) for the sample w/ the lowest mean. 
-    Returned tuple includes proportions for each sample where observations fall within the CI.
+    Uses the empirical rule to calculate the confidence interval (CI) for the group w/ the lowest mean. A note about using the CI w/ the lowest mean: choosing the lowest mean enables efficient comparison. We could have chosen to use the highest mean (or both), but using the lowest aligns w/ general thought that low pay is a major factor in attrition (we acknowledge that there are many factors), and since attrition is the focus of this project, we chose to use the lowest. 
+    
+    Returned tuple includes proportions for each group where observations fall within the CI.
         
     @param:
-        empl_sample (pd.Series): sample of employed employees
-        attr_sample (pd.Series): sample of attrited employees
+        empl_grp (pd.Series): group of employed employees
+        attr_grp (pd.Series): group of attrited employees
 
     @returns:
         Tuple: (CI, empl_proportion, attr_proportion)
     '''
-    empl_stats = _stats(empl_sample)
-    attr_stats = _stats(attr_sample)
+    
+    empl_stats = _stats(empl_grp)
+    attr_stats = _stats(attr_grp)
     
     ci = None
     if empl_stats['mean'] <= attr_stats['mean']:
@@ -114,8 +116,8 @@ def _ci(empl_sample: pd.Series, attr_sample: pd.Series) -> Tuple:
     else:
         ci = attr_stats['ci_68']
     
-    empl_p = _proportion(empl_sample, ci)
-    attr_p = _proportion(attr_sample, ci)
+    empl_p = _proportion(empl_grp, ci)
+    attr_p = _proportion(attr_grp, ci)
     return (ci, empl_p, attr_p)
 
 
@@ -136,39 +138,39 @@ def _cohens_d(empl_sample: pd.Series, attr_sample: pd.Series) -> float:
     return abs(d)
 
 
-def _means(empl_sample: pd.Series, attr_sample: pd.Series) -> Tuple:
+def _means(empl_grp: pd.Series, attr_grp: pd.Series) -> Tuple:
     '''
-    Calculates mean for each sample. Rounded to two decimal places.
+    Calculates mean for each group. Rounded to two decimal places.
         
     @param:
-        empl_sample (pd.Series): sample of employed employees
-        attr_sample (pd.Series): sample of attrited employees
+        empl_grp (pd.Series): group of employed employees
+        attr_grp (pd.Series): group of attrited employees
 
     @returns:
         Tuple: (empl_mean, attr_mean)
     '''
-    empl_mean = int(mean(empl_sample))
-    attr_mean = int(mean(attr_sample))
+    empl_mean = int(mean(empl_grp))
+    attr_mean = int(mean(attr_grp))
     return (empl_mean, attr_mean)
 
 
-def _quant_test(empl_sample: pd.DataFrame, attr_sample: pd.DataFrame, colname: str) -> pd.DataFrame:
-    empl = empl_sample[colname]
-    attr = attr_sample[colname]
+def _quant_test(empl_df: pd.DataFrame, attr_df: pd.DataFrame, colname: str) -> pd.DataFrame:
+    empl_grp = empl_df[colname]
+    attr_grp = attr_df[colname]
     
-    pval = _pval_unequal_stdev(empl, attr)
-    cohens_d = _cohens_d(empl, attr)
+    pval = _pval_unequal_stdev(empl_grp, attr_grp) #TODO: using population now...how does that affect pval, etc?
+    cohens_d = _cohens_d(empl_grp, attr_grp)
     
-    ci, empl_p, attr_p = _ci(empl, attr)
-    empl_mean, attr_mean = _means(empl, attr)
+    ci, empl_p, attr_p = _ci(empl_grp, attr_grp)
+    empl_mean, attr_mean = _means(empl_grp, attr_grp)
     
     dict_ = {
         'pval': [pval],
         'cohens_d': [cohens_d],
-        'ci_lower': [ci[0]],
-        'ci_upper': [ci[1]],
-        'empl_p': [empl_p],
-        'attr_p': [attr_p],
+        'ci_68_lower': [ci[0]],
+        'ci_68_upper': [ci[1]],
+        'empl_p_within_ci': [empl_p],
+        'attr_p_within_ci': [attr_p],
         'empl_mean': [empl_mean],
         'attr_mean': [attr_mean]
     }
@@ -179,11 +181,21 @@ def _round(x):
     return round(x, 3)
 
 
-def _proportion(sample: pd.Series, ci: Tuple) -> float:
-    n = sample.shape[0]
+def _proportion(group: pd.Series, ci: Tuple) -> float:
+    '''
+    Determines the proportion of a group's observations that fall within the confidence interval.
+        
+    @param:
+        group (pd.Series): group of observations
+        ci (Tuple): confidence interval; the 1st element is the lower ci, the 2nd is the upper
+
+    @returns:
+        float: proportion (rounded to two decimals)
+    '''
+    n = group.shape[0]
     obs = 0
     
-    for x in sample:
+    for x in group:
         if x >= ci[0] and x <= ci[1]:
             obs += 1
     
@@ -201,13 +213,15 @@ def _pval_unequal_stdev(empl_sample: pd.Series, attr_sample: pd.Series) -> float
     return pval
 
 
-def _stats(sample: pd.Series) -> Dict:
-    stdev_ = stdev(sample)
-    mean_ = mean(sample)
+def _stats(group: pd.Series) -> Dict:
+    stdev_ = stdev(group)
+    mean_ = mean(group)
+    min_ = min(group)
     
     lower = mean_ - stdev_
     upper = mean_ + stdev_
     
+    lower = min_ if lower < min_ else lower
     dict_ = {
         'stdev': round(stdev_),
         'mean': round(mean_),
