@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import statsmodels.stats.weightstats as ws
+import matplotlib.pyplot as plt
 from pathlib import Path
 from math import pow, sqrt, asin
 from typing import Dict, List, Tuple, Callable
@@ -33,19 +34,65 @@ def run_continuous_test(empl_samples: List, attr_samples: List, colname: str) ->
     return results
 
 
-def run_test(empl_samples: List, attr_samples: List, *, func: Callable=None, colname: str='', need_mean: bool=False) -> pd.Series:
+def average(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> Dict:
+    empl_grp = empl_pop[colname]
+    attr_grp = attr_pop[colname]
     
-    if need_mean and colname == '':
-        raise Error('If is_quant_test is True, must include arg colname')
+    empl_mean = int(mean(empl_grp))
+    attr_mean = int(mean(attr_grp))
     
-    if need_mean == False and colname == '' and func == None:
-        raise Error('Must pass a function.')
-        
-    if need_mean and func != None:
-        raise Error('Cannot pass function if is_quant_test is True.')
-        
-    if need_mean == False and colname != '':
-        raise Error('Cannot pass colname if need_mean is False.')
+    return {'empl': empl_mean, 'attr': attr_mean}
+    
+    
+def pie_chart(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> None:
+    fig = plt.figure(figsize=(4,3),dpi=144)
+    
+    ax1 = fig.add_subplot(121)
+    empl_counts = empl_pop[colname].value_counts().sort_index().tolist()
+    print(empl_pop[colname].value_counts().sort_index())
+    labels = ['0', '1', '2', '3']
+    empl_colors = ['r', 'b']
+    ax1.pie(empl_counts, labels=labels, colors=empl_colors, startangle = 90)
+
+    ax2 = fig.add_subplot(122)
+    attr_counts = attr_pop[colname].value_counts().sort_index().tolist()
+    print(attr_pop[colname].value_counts().sort_index())
+    ax2.pie(attr_counts, labels=labels, startangle = 90)
+
+    plt.show()
+
+
+def box_plot(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> None:
+    data = [empl_pop[colname], attr_pop[colname]]
+    plt.boxplot(data)
+    plt.xticks([1, 2], ['Empl', 'Attr'])
+    plt.title(f'{colname}')
+    
+    print(_title('box plot'))
+    plt.show()
+    
+    
+def bar_chart_avg(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> None:
+    avgs = average(empl_pop, attr_pop, colname)
+    
+    y = ['Employed', 'Attrited']
+    x = [avgs['empl'], avgs['attr']]
+    
+    fig, ax = plt.subplots()
+    bars = ax.barh(y, x)
+
+    ax.bar_label(bars)
+    bars[0].set_color('b')
+    bars[1].set_color('r')
+    
+    plt.xlabel(colname)
+    plt.title(f'Average {colname}')
+    
+    print(_title('bar chart'))
+    plt.show()
+    
+
+def run_test(empl_samples: List, attr_samples: List, *, func: Callable=None, colname: str='') -> pd.Series:
     
     num_of_samples = len(empl_samples)
     lst = []
@@ -56,10 +103,10 @@ def run_test(empl_samples: List, attr_samples: List, *, func: Callable=None, col
         df = None
         if func != None:
             df = func(empl_sample, attr_sample)
-        elif need_mean:
+        else:
             df = _quant_test(empl_sample, attr_sample, colname)
         lst.append(df)
-
+    
     return pd.concat(lst, ignore_index=True)
 
 
@@ -80,14 +127,21 @@ def proportions_pval(x1: int, n1: int, x2: int, n2: int) -> float:
     nobs = [n1, n2]
     return proportions_ztest(count=count, nobs=nobs)[1]
 
+
+def prop_pval_cohens_h(empl_sample: pd.DataFrame, attr_sample: pd.DataFrame, colname: str) -> float:
+    x1 = empl_sample[colname].value_counts()['Yes']
+    x2 = attr_sample[colname].value_counts()['Yes']
+    n = empl_sample.shape[0]
     
-def create_title(kind: str) -> str:
-    kinds = ['chart', 'proportions', 'significance', 'summary']
-    if kind not in kinds:
-        raise Error('Arg kind does not exist.')
-        
+    count = [x1, x2]
+    nobs = [n, n]
+    return proportions_ztest(count=count, nobs=nobs)[1]
+
+
+def _title(charttype: str) -> str:
     dash_length = 15
-    title = f'\n{kind.upper()}\n'
+    title = charttype.upper()
+    title = f'\n{title}\n'
     for _ in range(dash_length):
         title += '-'
     return title
@@ -121,7 +175,10 @@ def _ci(empl_grp: pd.Series, attr_grp: pd.Series) -> Tuple:
     return (ci, empl_p, attr_p)
 
 
-def _cohens_d(empl_sample: pd.Series, attr_sample: pd.Series) -> float:
+def cohens_d(empl_sample: pd.Series, attr_sample: pd.Series, colname: str) -> float:
+    empl_sample = empl_sample[colname]
+    attr_sample = attr_sample[colname]
+    
     x_bar = mean(empl_sample)
     x_bar2 = mean(attr_sample)
     
@@ -135,7 +192,7 @@ def _cohens_d(empl_sample: pd.Series, attr_sample: pd.Series) -> float:
 
     
     d = (x_bar2 - x_bar) / _pooled_stdev(stddev, stddev2)
-    return abs(d)
+    return abs(round(d, 4))
 
 
 def _means(empl_grp: pd.Series, attr_grp: pd.Series) -> Tuple:
@@ -154,11 +211,11 @@ def _means(empl_grp: pd.Series, attr_grp: pd.Series) -> Tuple:
     return (empl_mean, attr_mean)
 
 
-def _quant_test(empl_df: pd.DataFrame, attr_df: pd.DataFrame, colname: str) -> pd.DataFrame:
-    empl_grp = empl_df[colname]
-    attr_grp = attr_df[colname]
+def _quant_test(empl_sample: pd.DataFrame, attr_sample: pd.DataFrame, colname: str) -> pd.DataFrame:
+    empl_grp = empl_sample[colname]
+    attr_grp = attr_sample[colname]
     
-    pval = _pval_unequal_stdev(empl_grp, attr_grp) #TODO: using population now...how does that affect pval, etc?
+    pval = _pval_unequal_stdev(empl_grp, attr_grp)
     cohens_d = _cohens_d(empl_grp, attr_grp)
     
     ci, empl_p, attr_p = _ci(empl_grp, attr_grp)
@@ -203,14 +260,41 @@ def _proportion(group: pd.Series, ci: Tuple) -> float:
     return p
 
 
-def _pval_unequal_stdev(empl_sample: pd.Series, attr_sample: pd.Series) -> float:
-    sample1 = ws.DescrStatsW(empl_sample)
-    sample2 = ws.DescrStatsW(attr_sample)
+def pval_unequal_stdev(empl_sample: pd.Series, attr_sample: pd.Series, colname: str) -> float:
+    sample1 = ws.DescrStatsW(empl_sample[colname])
+    sample2 = ws.DescrStatsW(attr_sample[colname])
     
     cm_obj = ws.CompareMeans(sample1, sample2)
     
     zstat, pval = cm_obj.ztest_ind(usevar='unequal')
-    return pval
+    return round(pval, 4)
+
+
+def print_significance(pval: float, cohens: float) -> None:
+    pval_sig = ''
+    cohen_effect = ''
+    
+    if pval <= 0.01:
+        pval_sig = 'High Significance'
+    elif pval > 0.01 and pval <= 0.05:
+        pval_sig = 'Significance'
+    else:
+        pval_sig = 'Nonsignificance'
+        
+    if cohens < 0.2:
+        cohen_effect = 'Zero'
+    elif cohens >= 0.2 and cohens <= 0.4:
+        cohen_effect = 'Small'
+    elif cohens > 0.4 and cohens <= 0.7:
+        cohen_effect = 'Medium'
+    else:
+        cohen_effect = 'Large'
+    
+    if pval < 0.01:
+        pval = '< 0.01'
+    
+    title = '\nSIGNIFICANCE\n---------------'
+    print(f'{title}\nP value of {pval} shows {pval_sig} and Cohens of {cohens} shows a {cohen_effect} effect size.')
 
 
 def _stats(group: pd.Series) -> Dict:
