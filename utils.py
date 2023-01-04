@@ -2,6 +2,7 @@ from pathlib import Path
 
 import statsmodels.stats.weightstats as ws
 import matplotlib.pyplot as plt
+from random import choice
 from pathlib import Path
 from math import pow, sqrt, asin
 from typing import Dict, List, Tuple, Callable
@@ -52,13 +53,14 @@ def pie_chart(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> N
     print(empl_pop[colname].value_counts().sort_index())
     labels = ['0', '1', '2', '3']
     empl_colors = ['r', 'b']
-    ax1.pie(empl_counts, labels=labels, colors=empl_colors, startangle = 90)
+    ax1.pie(empl_counts, labels=labels, colors=empl_colors, autopct='%1.2f%%', startangle = 90)
 
     ax2 = fig.add_subplot(122)
     attr_counts = attr_pop[colname].value_counts().sort_index().tolist()
     print(attr_pop[colname].value_counts().sort_index())
     ax2.pie(attr_counts, labels=labels, startangle = 90)
 
+    plt.tight_layout()
     plt.show()
 
 
@@ -68,6 +70,7 @@ def box_plot(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> No
     plt.xticks([1, 2], ['Empl', 'Attr'])
     plt.title(f'{colname}')
     
+    print('\n')
     print(_title('box plot'))
     plt.show()
     
@@ -81,16 +84,80 @@ def bar_chart_avg(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) 
     fig, ax = plt.subplots()
     bars = ax.barh(y, x)
 
-    ax.bar_label(bars)
-    bars[0].set_color('b')
-    bars[1].set_color('r')
+    ax.bar_label(bars)\
+        
+    colors = _palette()
+    bars[0].set_color(colors[0])
+    bars[1].set_color(colors[1])
     
     plt.xlabel(colname)
     plt.title(f'Average {colname}')
     
+    print('\n')
     print(_title('bar chart'))
     plt.show()
     
+
+def bar_chart_shift(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> None:
+    empl_shift_count = empl_pop[colname].value_counts()[0]
+    attr_shift_count = attr_pop[colname].value_counts()[0]
+    
+    y = ['Employed', 'Attrited']
+    x = [round(empl_shift_count / empl_pop.shape[0], 2) * 100, 
+         round(attr_shift_count / attr_pop.shape[0], 2) * 100]
+    
+    fig, ax = plt.subplots()
+    bars = ax.barh(y, x)
+
+    ax.bar_label(bars)
+        
+    colors = _palette()
+    bars[0].set_color(colors[0])
+    bars[1].set_color(colors[1])
+    
+    plt.xlabel('Percentage')
+    plt.title(f'Percentage of Employees on Split Shift')
+    
+    print('\n')
+    print(_title('bar chart'))
+    plt.show()
+    
+    
+def bar_chart_ot(empl_pop: pd.DataFrame, attr_pop: pd.DataFrame, colname: str) -> None:
+    attr_prop = attr_pop[colname].value_counts()['Yes'] / attr_pop[colname].shape[0]
+    empl_prop = empl_pop[colname].value_counts()['Yes'] / empl_pop[colname].shape[0]
+    
+    attr_prop = round(attr_prop, 2) * 100
+    empl_prop = round(empl_prop, 2) * 100
+    
+    y = ['Employed', 'Attrited']
+    x = [empl_prop, attr_prop]
+    
+    fig, ax = plt.subplots()
+    bars = ax.barh(y, x)
+
+    ax.bar_label(bars)
+    colors = _palette()
+    bars[0].set_color(colors[0])
+    bars[1].set_color(colors[1])
+    
+    plt.xlabel('Percentage')
+    plt.title(f'Percentage of Employees w/ Over Time')
+    
+    print(_title('bar chart'))
+    plt.show()
+    
+    
+def _palette() -> List:
+    palette1 = ['#468189', '#F4E9CD']
+    palette2 = ['#6C9A8B', '#E8998D']
+    palette3 = ['#1A5E63', '#F0F3BD']
+    palette4 = ['#084887', '#F9AB55']
+    palette5 = ['#62929E', '#C6C5B9']
+    
+    lst = [palette1, palette2, palette3, palette4, palette5]
+    return choice(lst)
+
 
 def run_test(empl_samples: List, attr_samples: List, *, func: Callable=None, colname: str='') -> pd.Series:
     
@@ -294,7 +361,7 @@ def print_significance(pval: float, cohens: float) -> None:
         pval = '< 0.01'
     
     title = '\nSIGNIFICANCE\n---------------'
-    print(f'{title}\nP value of {pval} shows {pval_sig} and Cohens of {cohens} shows a {cohen_effect} effect size.')
+    print(f'\n{title}\nP value of {pval} shows {pval_sig} and Cohens of {cohens} shows a {cohen_effect} effect size.\n')
 
 
 def _stats(group: pd.Series) -> Dict:
